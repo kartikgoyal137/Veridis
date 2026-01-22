@@ -10,6 +10,7 @@
 #include <string>
 
 volatile std::sig_atomic_t running = 1;
+std::string CGROUP_ROOT = "/sys/fs/cgroup/";
 
 void handle_signal(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {

@@ -11,48 +11,46 @@ namespace fs = std::filesystem;
 
 const std::string CGROUP_ROOT = "/sys/fs/cgroup";
 
-class Cgroup {
-  fs::path path;
-public:
-  Cgroup (const fs::path p) {
+
+Cgroup::Cgroup (const fs::path p) {
     this->path = p;
 
     if(!fs::exists(path)) {
       this->create();
     }
 
-  }
+}
 
-  void create() {
+void Cgroup::create() {
     fs::create_directory(this->path);
   }
 
-  void enable_controllers(const std::string& controllers) {
+void Cgroup::enable_controllers(const std::string& controllers) {
     write_file(path/"cgroup.subtree_control", controllers);
   }
 
-  Cgroup create_child(const std::string& name) {
+Cgroup Cgroup::create_child(const std::string& name) {
     fs::path child_path = this->path / name;
     return Cgroup(child_path);
   }
 
-  void set_memory_limit(const std::string& bytes) {
+void Cgroup::set_memory_limit(const std::string& bytes) {
     write_file(path / "memory.max" , bytes);
   }
 
-  void set_cpu_limit(const std::string &quota, const std::string& period) {
+void Cgroup::set_cpu_limit(const std::string &quota, const std::string& period) {
     write_file(path / "cpu.max", quota + " " + period);
   }
 
-  void set_pids_limit(const std::string& max_pids) {
+void Cgroup::set_pids_limit(const std::string& max_pids) {
     write_file(path / "pids.max", max_pids);
   }
 
-  void add_process(pid_t pid) {
+void Cgroup::add_process(pid_t pid) {
     write_file(path / "cgroup.procs" , std::to_string(pid) );
   }
 
-  ~Cgroup() {
+Cgroup::~Cgroup() {
     if(fs::remove_all(path)) {
       std::cout << "directory removed\n";
     }
@@ -61,6 +59,6 @@ public:
     }
   }
 
-};
+
 
 

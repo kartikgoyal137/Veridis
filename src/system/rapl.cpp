@@ -18,9 +18,11 @@ public:
   this->max_energy = e;
   }
 
+  uint64_t read_energy_uj();
+  double get_power();
 };
 
-fs::path Rapl::find_rapl_path() {
+fs::path find_rapl_path() {
   const fs::path base{"/sys/class/powercap/intel-rapl"};
 
   if(!fs::exists(base))
@@ -48,7 +50,7 @@ uint64_t Rapl::read_energy_uj () {
   return read_uint64(p);
 }
 
-Rapl Rapl::init_rapl() {
+Rapl init_rapl() {
   fs::path path = find_rapl_path();
   uint64_t max_energy = read_uint64(path / "max_energy_range_uj");
 
@@ -59,12 +61,12 @@ Rapl Rapl::init_rapl() {
 
 double Rapl::get_power() {
   using clock = std::chrono::steady_clock;
-  uint64_t e0 = read_energy_uj(*this);
+  uint64_t e0 = this->read_energy_uj();
   auto t0 = clock::now();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  uint64_t e1 = read_energy_uj(*this);
+  uint64_t e1 = this->read_energy_uj();
   auto t1 = clock::now();
 
   std::chrono::duration<double> dur = t1-t0;
@@ -84,14 +86,4 @@ double Rapl::get_power() {
   return de_j / delta;
 }
 
-int main(int argc, char* argv[]) {
-  try {
-    Rapl rapl = init_rapl();
-    double power = get_power(rapl);
 
-    std::cout << "POWER: " << power << std::endl;
-  }
-  catch (const std::exception& e) {
-    std::cerr << "ERROR: " << e.what() << std::endl;
-  }
-}
