@@ -4,6 +4,10 @@
 #include <atomic>
 #include "../system/cgroup.hpp"
 #include "monitor.hpp" 
+#include "../system/helper.h"
+#include <set>
+#include <unistd.h>
+#include <string>
 
 volatile std::sig_atomic_t running = 1;
 
@@ -22,6 +26,7 @@ int main() {
 
     try {
         std::vector<std::pair<uint32_t, uint64_t>> usage_data;
+        std::set<std::string> allowed;
         usage_data.reserve(1024); 
 
         EBPF obj;         
@@ -45,8 +50,12 @@ int main() {
                 uint64_t time_ns = entry.second;
 
                 if (time_ns > (CPU_THRESHOLD_MS * NS_CONVERSION)) {
-                    job.add_process(pid);
-                    bad_count++;
+                    std::string name = process_name(pid);
+                    std::string user = process_user(pid);
+                    if(allowed.find(name)==allowed.end() && user == "kartik") {
+                      job.add_process(pid);
+                      bad_count++;
+                    }
                 }
             }
             
@@ -62,7 +71,6 @@ int main() {
         return 1;
     }
     
-    job.remove();
     std::cout << "Exiting gracefully." << std::endl;
     return 0;
 }
