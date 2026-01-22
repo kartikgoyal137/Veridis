@@ -5,22 +5,14 @@
 #include "helper.h"
 #include <iostream>
 #include <fstream>
+#include "rapl.hpp"
 
 namespace fs = std::filesystem;
 
-class Rapl {
-public:
-  std::string path;
-  uint64_t max_energy;
-
-  Rapl (const std::string p, const uint64_t e) {
+Rapl::Rapl (const std::string p, const uint64_t e) {
   this->path = p;
   this->max_energy = e;
-  }
-
-  uint64_t read_energy_uj();
-  double get_power();
-};
+}
 
 fs::path find_rapl_path() {
   const fs::path base{"/sys/class/powercap/intel-rapl"};
@@ -45,11 +37,6 @@ fs::path find_rapl_path() {
   throw std::runtime_error("package-0 domain not found");
 }
 
-uint64_t Rapl::read_energy_uj () {
-  fs::path p(this->path + "/energy_uj");
-  return read_uint64(p);
-}
-
 Rapl init_rapl() {
   fs::path path = find_rapl_path();
   uint64_t max_energy = read_uint64(path / "max_energy_range_uj");
@@ -57,6 +44,11 @@ Rapl init_rapl() {
   Rapl rapl(path.string(), max_energy);
 
   return rapl;
+}
+
+uint64_t Rapl::read_energy_uj () {
+  fs::path p(this->path + "/energy_uj");
+  return read_uint64(p);
 }
 
 double Rapl::get_power() {

@@ -2,7 +2,7 @@ CXX = g++
 CXXFLAGS = -std=c++17
 
 SRC = \
-	src/core/scheduler.cpp \
+	main.cpp \
 	src/core/monitor.cpp \
 	src/system/cgroup.cpp \
 	src/system/helper.cpp \
