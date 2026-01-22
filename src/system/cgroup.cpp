@@ -51,14 +51,23 @@ void Cgroup::add_process(pid_t pid) {
   }
 
 Cgroup::~Cgroup() {
-    if(fs::remove_all(path)) {
-      std::cout << "directory removed\n";
+    try {
+       if (fs::exists(this->path)) {
+            std::ifstream procs_file(this->path / "cgroup.procs");
+            std::string pid;
+            while (std::getline(procs_file, pid)) {
+                try {
+                    write_file(fs::path("/sys/fs/cgroup/cgroup.procs"), pid);
+                } catch (...) {
+                }
+            }
+            procs_file.close();
+
+            if (fs::remove_all(this->path)) {
+                std::cout << "Successfully removed cgroup: " << this->path << std::endl;
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Cleanup failed for " << this->path << ": " << e.what() << std::endl;
     }
-    else {
-      std::cout << "not found\n";
-    }
-  }
-
-
-
-
+}

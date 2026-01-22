@@ -39,4 +39,15 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx) {
 
   return 0;
 }
+
+SEC("tracepoint/sched/sched_process_exit")
+int handle_process_exit(struct trace_event_raw_sched_process_exit *ctx)
+{
+    u32 pid = ctx->pid;
+    bpf_map_delete_elem(&start_time, &pid);
+    bpf_map_delete_elem(&cpu_time, &pid);
+
+    return 0;
+}
+
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
