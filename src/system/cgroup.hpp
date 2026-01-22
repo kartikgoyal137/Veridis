@@ -12,6 +12,9 @@ private:
 public:
     Cgroup(fs::path p);
     ~Cgroup();
+    Cgroup(const Cgroup&) = delete; 
+    Cgroup& operator=(const Cgroup&) = delete;
+
     void enable_controllers(const std::string& controllers);
     Cgroup create_child(const std::string& name);
     void set_cpu_limit(const std::string &quota, const std::string& period);
