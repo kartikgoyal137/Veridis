@@ -5,12 +5,11 @@
 #include<stdexcept>
 #include<iostream>
 #include"helper.h"
+#include"cgroup.hpp"
 
 namespace fs = std::filesystem;
 
 const std::string CGROUP_ROOT = "/sys/fs/cgroup";
-
-
 
 class Cgroup {
   fs::path path;
@@ -53,29 +52,15 @@ public:
     write_file(path / "cgroup.procs" , std::to_string(pid) );
   }
 
+  void remove() {
+    if(fs::remove_all(path)) {
+      std::cout << "directory removed\n";
+    }
+    else {
+      std::cout << "not found\n";
+    }
+  }
+
 };
 
-int main(int argc, char* argv[]) {
-  int target_pid = std::stoi(argv[1]);
 
-  try {
-    Cgroup root(fs::path(CGROUP_ROOT)/"veridis");
-    root.enable_controllers("+cpu +memory +pids");
-
-    Cgroup job = root.create_child("job1"); //get it from CLI argument
-    job.set_memory_limit("524288000");
-    job.set_cpu_limit("50000", "100000");
-    job.set_pids_limit("64");
-    job.add_process(target_pid);
-
-    std::cin.get();
-
-  }
-  catch (const std::exception& e) {
-    std::cerr << "ERROR" << e.what() << std::endl;
-    return 1;
-  }
-
-  return 0;
-
-}

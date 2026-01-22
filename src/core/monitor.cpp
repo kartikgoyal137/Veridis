@@ -53,8 +53,6 @@ EBPF() {
 void fill_map(std::vector<std::pair<uint32_t, uint64_t>>& usage_data) { 
     static std::map<uint32_t, uint64_t> last_snapshot;
 
-    while(1) {
-    sleep(1);
     usage_data.clear();
 
     uint32_t pid = 0; uint32_t next_pid;
@@ -75,8 +73,6 @@ void fill_map(std::vector<std::pair<uint32_t, uint64_t>>& usage_data) {
         if( delta > 0 ) usage_data.emplace_back(next_pid, delta);
         pid = next_pid;
       }
-
-    }
 
    }
 }

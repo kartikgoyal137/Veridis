@@ -20,7 +20,7 @@ public:
 
 };
 
-fs::path find_rapl_path() {
+fs::path Rapl::find_rapl_path() {
   const fs::path base{"/sys/class/powercap/intel-rapl"};
 
   if(!fs::exists(base))
@@ -43,12 +43,12 @@ fs::path find_rapl_path() {
   throw std::runtime_error("package-0 domain not found");
 }
 
-uint64_t read_energy_uj (const Rapl& rapl) {
-  fs::path p(rapl.path + "/energy_uj");
+uint64_t Rapl::read_energy_uj () {
+  fs::path p(this->path + "/energy_uj");
   return read_uint64(p);
 }
 
-Rapl init_rapl() {
+Rapl Rapl::init_rapl() {
   fs::path path = find_rapl_path();
   uint64_t max_energy = read_uint64(path / "max_energy_range_uj");
 
@@ -57,14 +57,14 @@ Rapl init_rapl() {
   return rapl;
 }
 
-double get_power(const Rapl& rapl) {
+double Rapl::get_power() {
   using clock = std::chrono::steady_clock;
-  uint64_t e0 = read_energy_uj(rapl);
+  uint64_t e0 = read_energy_uj(*this);
   auto t0 = clock::now();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  uint64_t e1 = read_energy_uj(rapl);
+  uint64_t e1 = read_energy_uj(*this);
   auto t1 = clock::now();
 
   std::chrono::duration<double> dur = t1-t0;
@@ -76,12 +76,12 @@ double get_power(const Rapl& rapl) {
     de = e1-e0;
   }
   else {
-    de = (rapl.max_energy - e0) + e1;
+    de = (this->max_energy - e0) + e1;
   }
 
   double de_j = static_cast<double>(de)*1e-6;
 
-  return de_j / delta; //WATT
+  return de_j / delta;
 }
 
 int main(int argc, char* argv[]) {
