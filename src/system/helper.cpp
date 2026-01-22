@@ -49,4 +49,6 @@ std::string process_user(pid_t pid) {
       return pw ? pw->pw_name : std::to_string(uid);
     }
   }
+
+  return "user";
 }

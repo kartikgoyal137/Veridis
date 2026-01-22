@@ -7,6 +7,7 @@
 #include <stdexcept> 
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
+#include <map>
 
 class EBPF {
 private:
@@ -16,6 +17,7 @@ private:
 
 public:
     struct bpf_map *map = nullptr;
+    std::map<uint32_t, uint64_t> last_snapshot;
     int map_fd = -1;
 
      EBPF() {
