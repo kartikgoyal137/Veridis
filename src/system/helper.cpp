@@ -2,6 +2,9 @@
 #include <fstream>
 #include <cstdint>
 #include <helper.h>
+#include <string>
+#include <sys/types.h>
+#include <pwd.h>
 
 namespace fs = std::filesystem; 
   
@@ -22,4 +25,28 @@ uint64_t read_uint64(const fs::path& path) {
   file >> value;
 
   return value;
+}
+
+std::string process_name(pid_t pid) {
+  fs::path p = "/proc/"+std::to_string(pid)+"/comm";
+  std::ifstream file(p);
+
+  std::string name;
+  std::getline(file, name);
+
+  return name;
+}
+
+std::string process_user(pid_t pid) {
+  fs::path p = "/proc/"+std::to_string(pid)+"/status";
+  std::ifstream file(p);
+  std::string line;
+
+  while(std::getline(file,line)) {
+    if(line.rfind("Uid:", 0)==0) {
+      uid_t uid = std::stoi(line.substr(4));
+      struct passwd *pw = getpwuid(uid);
+      return pw ? pw->pw_name : std::to_string(uid);
+    }
+  }
 }

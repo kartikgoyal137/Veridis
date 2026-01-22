@@ -52,7 +52,7 @@ public:
     write_file(path / "cgroup.procs" , std::to_string(pid) );
   }
 
-  void remove() {
+  ~Cgroup() {
     if(fs::remove_all(path)) {
       std::cout << "directory removed\n";
     }
