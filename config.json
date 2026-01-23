@@ -1,7 +1,7 @@
 {
   "cgroup_root": "/sys/fs/cgroup/",
-  "power_limit_soft": 15.0,
-  "power_limit_hard": 30.0,
+  "power_limit_soft": 10.0,
+  "power_limit_hard": 20.0,
   "cpu_threshold_ms": 500,
   "monitored_users": ["kartik"],
   "whitelist": ["Xorg", "Waybar", "Hyprland", "sshd"],

@@ -5,6 +5,7 @@
 #include <string>
 #include <sys/types.h>
 #include <pwd.h>
+#include <iostream>
 
 namespace fs = std::filesystem; 
   
@@ -13,6 +14,35 @@ void write_file(const fs::path& path, const std::string& value) {
   if(!file)
     throw std::runtime_error("Failed to open: "+ path.string());
   file << value;
+}
+
+
+void logger(LogLevel level, const std::string& message) {
+    auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+
+    std::string levelStr;
+    std::ostream* out = &std::cout;
+
+    switch(level) {
+        case LogLevel::DEBUG: 
+            levelStr = "[DEBUG]"; 
+            break;
+        case LogLevel::INFO:  
+            levelStr = "[INFO] "; 
+            break;
+        case LogLevel::WARN:  
+            levelStr = "[WARN] "; 
+            out = &std::cerr; 
+            break; 
+        case LogLevel::ERROR: 
+            levelStr = "[ERROR]"; 
+            out = &std::cerr; 
+            break;
+    }
+
+    *out << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << " " 
+         << levelStr << " " << message << std::endl;
 }
 
 uint64_t read_uint64(const fs::path& path) {

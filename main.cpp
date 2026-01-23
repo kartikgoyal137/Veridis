@@ -32,7 +32,16 @@ int main() {
 
         std::map<pid_t, int> throttled;
 
+        logger(LogLevel::INFO, "Veridis Scheduler starting...");
+        logger(LogLevel::INFO, "Config loaded\nCPU Threshold: " + std::to_string(cfg.cpu_threshold_ms) + "ms\n");
+        logger(LogLevel::INFO, "POWER_LIMIT_SOFT: " + std::to_string(cfg.power_limit_soft) + "\n");
+        logger(LogLevel::INFO, "POWER_LIMIT_HARD: " + std::to_string(cfg.power_limit_hard) + "\n");
+        logger(LogLevel::INFO, "PROBATION_CYCLES: " + std::to_string(cfg.probation_cycles) + "\n");
+
+
         Rapl rapl = init_rapl();
+        logger(LogLevel::INFO, "RAPL Initialized.");
+
         double power = 0;
 
         EBPF obj;         
@@ -43,9 +52,8 @@ int main() {
         job.set_memory_limit("524288000");
         job.set_pids_limit("128");
 
-        std::cout << "Scheduler Active " 
-                  << cfg.cpu_threshold_ms << " ms/sec." << std::endl;
 
+        logger(LogLevel::INFO, "Cgroups configured. Scheduler Loop Active.\n\n");
         while (running) {
             power = rapl.get_power();
             obj.fill_map(usage_data);
@@ -77,6 +85,7 @@ int main() {
                     curr_bad_jobs.insert(pid);
                         
                     if(throttled.find(pid)==throttled.end()) {
+                      logger(LogLevel::INFO, "THROTTLE: " + name + " (PID: " + std::to_string(pid) + ")");
                       job.add_process(pid);
                       throttled[pid] = 0;
                       bad_count++;
@@ -95,9 +104,11 @@ int main() {
 
                     if (it->second >= cfg.probation_cycles) {
                         try {
+                            logger(LogLevel::INFO, "RELEASE: PID " + std::to_string(pid) + "\n");
                             root.add_process(pid); 
-                            std::cout << "[RELEASE] PID " << pid << "\n";
-                        } catch (...) {
+                           
+                         } catch (const std::exception& e) {
+                        logger(LogLevel::ERROR, "Failed to release PID " + std::to_string(pid) + ": " + e.what());
                         }
                         it = throttled.erase(it); 
                     } else {
@@ -112,14 +123,14 @@ int main() {
             }
             std::cout << "\n\n";
             
-            sleep(1);
+            sleep(2);
         }
 
     } catch (const std::exception& e) {
-        std::cerr << "[Fatal Error] " << e.what() << std::endl;
+        logger(LogLevel::ERROR, std::string("Fatal Error: ") + e.what());
         return 1;
     }
     
-    std::cout << "Exiting gracefully." << std::endl;
+    logger(LogLevel::INFO, "Exiting gracefully.");
     return 0;
 }
