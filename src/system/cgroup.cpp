@@ -63,7 +63,7 @@ Cgroup::~Cgroup() {
             }
             procs_file.close();
 
-            if (fs::remove_all(this->path)) {
+            if (fs::remove(this->path)) {
                 std::cout << "Successfully removed cgroup: " << this->path << std::endl;
             }
         }
