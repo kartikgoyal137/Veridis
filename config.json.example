@@ -1,0 +1,18 @@
+{
+  "cgroup_root": "/sys/fs/cgroup/",
+  "grid_zone": "IN-UT", 
+  "carbon_api_key": "",
+  "carbon_thresholds": {
+    "moderate_gco2": 250,
+    "dirty_gco2": 450
+  },
+  "power_profiles": {
+    "green": { "soft": 15.0, "hard": 25.0 },
+    "moderate": { "soft": 8.0, "hard": 16.0 },
+    "dirty": { "soft": 4.0, "hard": 8.0 }
+  },
+  "cpu_threshold_ms": 300,
+  "monitored_users": ["kartik"],
+  "whitelist": ["Xorg", "Waybar", "Hyprland", "sshd"],
+  "probation_cycles": 5
+}
