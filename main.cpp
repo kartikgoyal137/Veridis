@@ -14,6 +14,8 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <iomanip>
+#include "src/system/gpu.hpp"
+#include "src/system/database.hpp"
 
 using json = nlohmann::json;
 
@@ -57,6 +59,10 @@ int main() {
         Rapl rapl = init_rapl();
         logger(LogLevel::INFO, "RAPL ready");
 
+        GpuMonitor gpu_mon;
+        CarbonDatabase db("/home/kartik/.veridis/history.db");
+        logger(LogLevel::INFO, "GPU and Database ready");
+
         double pwr = 0;
 
         EBPF ebpf;         
@@ -74,23 +80,29 @@ int main() {
                 CarbonData gstate = carb.fetch_live_intensity();
                 pwr_sft = cfg.power_profiles[gstate.profile]["soft"];
                 pwr_hrd = cfg.power_profiles[gstate.profile]["hard"];
-                last_intensity = gstate.intensity;
+                last_intensity = (gstate.intensity > 0) ? gstate.intensity : 450; // Default to 450 if fetch fails
                 
                 logger(LogLevel::INFO, "Grid: " + gstate.profile + " | " + std::to_string(gstate.intensity) + " gCO2");
                 logger(LogLevel::INFO, "Lims: " + std::to_string(pwr_sft) + "W / " + std::to_string(pwr_hrd) + "W");
             }
 
             pwr = rapl.get_power();
+            GpuStats gpu_stats = gpu_mon.get_stats();
+            double total_pwr = pwr + gpu_stats.power_w;
+            
             ebpf.fill_map(udata);
             
-            if(pwr > pwr_hrd) {
+            if(total_pwr > pwr_hrd) {
                 job.set_cpu_limit("5000", "100000");
+                gpu_mon.set_power_limit(gpu_stats.default_limit * 0.5);
             }
-            else if (pwr > pwr_sft) {
+            else if (total_pwr > pwr_sft) {
                 job.set_cpu_limit("30000", "100000");
+                gpu_mon.set_power_limit(gpu_stats.default_limit * 0.8);
             }
             else {
                 job.set_cpu_limit("90000", "100000");
+                gpu_mon.reset_power_limit();
             }
 
             std::set<pid_t> bad_jobs;
@@ -141,39 +153,71 @@ int main() {
                 }
             }
 
-            logger(LogLevel::INFO, "PWR: " + std::to_string(pwr) + " W");
+            logger(LogLevel::INFO, "PWR: " + std::to_string(total_pwr) + " W (CPU: " + std::to_string(pwr) + "W, GPU: " + std::to_string(gpu_stats.power_w) + "W)");
             if (bad_cnt > 0) {
                 logger(LogLevel::INFO, "Caught " + std::to_string(bad_cnt) + " procs");
             }
             
             iters++;
 
-            // Carbon Calculation (2s interval)
             double interval_h = 2.0 / 3600.0;
-            double carbon_iteration = (pwr / 1000.0) * interval_h * last_intensity;
+            double intensity_val = (last_intensity > 0) ? last_intensity : 450.0;
+            double carbon_iteration = (total_pwr / 1000.0) * interval_h * intensity_val;
             total_carbon_used_g += carbon_iteration;
 
-            // Simple "Saved" estimation: if pwr < pwr_sft, we are "saving" relative to the limit
-            if (pwr < pwr_sft && pwr_sft > 0) {
-                total_carbon_saved_g += ((pwr_sft - pwr) / 1000.0) * interval_h * last_intensity;
+            double baseline_w = 30.0; 
+            if (total_pwr < baseline_w) {
+                total_carbon_saved_g += ((baseline_w - total_pwr) / 1000.0) * interval_h * intensity_val;
+            }
+
+            // Persistence Logging (every ~10 iterations/20s)
+            if (iters % 10 == 0) {
+                db.log_stats(total_carbon_used_g, total_carbon_saved_g);
             }
 
             // Export JSON State
             json state;
             state["timestamp"] = std::time(nullptr);
-            state["power_w"] = pwr;
+            state["power_w"] = total_pwr;
+            state["cpu_power_w"] = pwr;
+            state["gpu_power_w"] = gpu_stats.power_w;
             state["carbon_intensity"] = last_intensity;
             state["total_carbon_used_g"] = total_carbon_used_g;
             state["total_carbon_saved_g"] = total_carbon_saved_g;
             state["soft_limit"] = pwr_sft;
             state["hard_limit"] = pwr_hrd;
             
+            // History
+            json hist_json = json::array();
+            auto hist = db.get_history(7);
+            for (const auto& ds : hist) {
+                json d;
+                d["date"] = ds.date;
+                d["used"] = ds.used_g;
+                d["saved"] = ds.saved_g;
+                hist_json.push_back(d);
+            }
+            state["history"] = hist_json;
+            
+            // Add GPU procs
+            json gpu_procs = json::array();
+            auto gpu_util = gpu_mon.get_process_utilization();
+            for (auto const& [pid, mem] : gpu_util) {
+                json gp;
+                gp["pid"] = pid;
+                gp["name"] = process_name(pid);
+                gp["vram_mb"] = mem;
+                gpu_procs.push_back(gp);
+            }
+            state["gpu_processes"] = gpu_procs;
+            
             json procs_json = json::array();
             for (const auto& ent : udata) {
                 pid_t pid = static_cast<pid_t>(ent.first);
                 uint64_t t_ns = ent.second;
                 double cpu_percent = (t_ns / 2000000000.0) * 100.0; // 2s interval
-                
+                if (cpu_percent < 0.1 && (thrtld.find(pid) == thrtld.end())) continue;
+
                 json p;
                 p["pid"] = pid;
                 p["name"] = process_name(pid);

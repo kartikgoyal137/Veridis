@@ -58,17 +58,13 @@ def make_summary(stats):
     table.add_column(style="bold cyan", justify="right")
     table.add_column(style="white")
     
-    table.add_row("Power Usage:", f"{stats.get('power_w', 0):.2f} W")
+    table.add_row("CPU Power:", f"{stats.get('cpu_power_w', 0):.1f} W")
+    table.add_row("GPU Power:", f"{stats.get('gpu_power_w', 0):.1f} W")
+    table.add_row("Total Power:", f"[bold white]{stats.get('power_w', 0):.1f} W[/]")
     table.add_row("Carbon Intensity:", f"{stats.get('carbon_intensity', 0)} gCO2/kWh")
-    table.add_row("Soft Limit:", f"{stats.get('soft_limit', 0)} W")
-    table.add_row("Hard Limit:", f"{stats.get('hard_limit', 0)} W")
-    
-    # Color based on carbon
     carbon_used = stats.get('total_carbon_used_g', 0)
     carbon_saved = stats.get('total_carbon_saved_g', 0)
-    
-    table.add_row("Carbon Used:", f"[bold red]{carbon_used:.4f} g[/]")
-    table.add_row("Carbon Saved:", f"[bold green]{carbon_saved:.4f} g[/]")
+    table.add_row("Used/Saved:", f"[red]{carbon_used:.3f}g[/] / [green]{carbon_saved:.3f}g[/]")
     
     # Power Bar
     pwr = stats.get('power_w', 0)
@@ -81,6 +77,14 @@ def make_summary(stats):
     
     table.add_row("", "")
     table.add_row("Power Load:", bar)
+
+    # History Summary
+    history = stats.get("history", [])
+    if history:
+        table.add_row("", "")
+        table.add_row("[bold]Last 7 Days (Saved)[/]", "")
+        for day in history[:5]:
+            table.add_row(f"{day['date']}:", f"[green]{day['saved']:.2f} g[/]")
     
     return Panel(table, title="[bold]System Status[/bold]", border_style="green", padding=(1, 2))
 
@@ -107,11 +111,23 @@ def make_proc_table(stats):
             status_text
         )
 
-    return Panel(table, title="[bold]High Impact Processes[/bold]", border_style="blue")
+    gpu_procs = stats.get("gpu_processes", [])
+    for p in gpu_procs:
+        table.add_row(
+            str(p["pid"]),
+            f"[chartreuse1]{p['name']} (GPU)[/]",
+            "user",
+            f"{p.get('vram_mb', 0):.0f} MB",
+            "[bold orange1]GPU_LOAD[/]"
+        )
 
-def make_footer():
+    return Panel(table, title="[bold]Resource Intensive Processes[/bold]", border_style="blue")
+
+def make_footer(stats):
+    total_cpu = len(stats.get("processes", [])) if stats else 0
+    total_gpu = len(stats.get("gpu_processes", [])) if stats else 0
     return Panel(
-        Text("Press Ctrl+C to Exit | Veridis v1.0", justify="center", style="dim"),
+        Text(f"Total Monitored: {total_cpu} CPU, {total_gpu} GPU | Press Ctrl+C to Exit | Veridis v1.1", justify="center", style="dim"),
         box=box.SIMPLE
     )
 
@@ -125,7 +141,7 @@ def run():
             layout["header"].update(header)
             layout["sidebar"].update(make_summary(stats))
             layout["body"].update(make_proc_table(stats))
-            layout["footer"].update(make_footer())
+            layout["footer"].update(make_footer(stats))
             time.sleep(1)
 
 if __name__ == "__main__":

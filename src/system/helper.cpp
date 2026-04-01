@@ -62,23 +62,40 @@ std::string process_name(pid_t pid) {
   std::ifstream file(p);
 
   std::string name;
-  std::getline(file, name);
+  if (std::getline(file, name) && !name.empty()) {
+      return name;
+  }
 
-  return name;
+  // Fallback to /proc/pid/stat for the process name in parentheses if comm is empty
+  fs::path p_stat = "/proc/"+std::to_string(pid)+"/stat";
+  std::ifstream f_stat(p_stat);
+  std::string stat_line;
+  if(std::getline(f_stat, stat_line)) {
+      size_t start = stat_line.find('(');
+      size_t end = stat_line.find_last_of(')');
+      if(start != std::string::npos && end != std::string::npos && end > start) {
+          return stat_line.substr(start + 1, end - start - 1);
+      }
+  }
+
+  return "[kernel/exp]";
 }
 
 std::string process_user(pid_t pid) {
   fs::path p = "/proc/"+std::to_string(pid)+"/status";
   std::ifstream file(p);
-  std::string line;
+  if(!file.is_open()) return "root";
 
+  std::string line;
   while(std::getline(file,line)) {
     if(line.rfind("Uid:", 0)==0) {
-      uid_t uid = std::stoi(line.substr(4));
-      struct passwd *pw = getpwuid(uid);
-      return pw ? pw->pw_name : std::to_string(uid);
+      try {
+          uid_t uid = std::stoi(line.substr(4));
+          struct passwd *pw = getpwuid(uid);
+          return pw ? pw->pw_name : std::to_string(uid);
+      } catch (...) { return "root"; }
     }
   }
 
-  return "user";
+  return "root";
 }

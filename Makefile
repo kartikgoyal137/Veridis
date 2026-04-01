@@ -7,14 +7,16 @@ SRC = \
 	src/system/cgroup.cpp \
 	src/system/helper.cpp \
 	src/system/rapl.cpp \
-	src/system/carbon.cpp
+	src/system/carbon.cpp \
+	src/system/gpu.cpp \
+	src/system/database.cpp
 
 BPF_SRC = bpf/veridis.bpf.c
 BPF_OBJ = target/veridis.bpf.o
 
 TARGET = veridis
 
-LIBS = -lbpf -lelf -lz -lcurl
+LIBS = -lbpf -lelf -lz -lcurl -lsqlite3
 
 all: $(BPF_OBJ) $(TARGET)
 

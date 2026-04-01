@@ -1,96 +1,44 @@
 # Veridis
 
-**Veridis** is a power-aware process regulator for Linux systems. It dynamically monitors system power consumption and CPU usage to throttle specific processes when energy thresholds are exceeded.
+**Veridis** is a power-aware process regulator for Linux systems. It dynamically monitors system power consumption (CPU & GPU) and CPU usage to throttle specific processes when energy thresholds are exceeded.
 
-The system leverages **eBPF** for low-overhead CPU accounting and **Cgroups v2** for precise resource enforcement.
+The system leverages **eBPF** for low-overhead CPU accounting, **RAPL** for Intel power monitoring, and **Nvidia SMI** for GPU regulation.
 
 ---
 
 ## Technical Architecture
 
-Veridis operates through a central **userspace daemon** that coordinates three core components:
+Veridis operates through a central **userspace daemon** that coordinates four core components:
 
-### 1. Power Monitoring (RAPL)
+### 1. Power Monitoring (RAPL & GPU)
 
-- Reads energy metrics directly from the Intel **RAPL** (Running Average Power Limit) interface
-- Uses `/sys/class/powercap` to sample energy counters
-- Computes real-time power usage (in **Watts**) by measuring energy deltas over precise intervals
+- **CPU**: Reads energy metrics directly from the Intel **RAPL** (Running Average Power Limit) interface.
+- **GPU**: Monitors Nvidia GPU power draw and utilization via `nvidia-smi`.
+- Computes real-time combined power usage (in **Watts**).
 
 ### 2. CPU Accounting (eBPF)
 
-- Loads a custom **eBPF program** into the kernel
-- Hooks into the `tracepoint/sched/sched_switch` tracepoint
-- Tracks exact CPU time consumed by each **thread and process** using a kernel hash map
-- Avoids polling `/proc`, reducing overhead and eliminating race conditions
+- Hooks into the `tracepoint/sched/sched_switch` tracepoint to track exact CPU time consumed by each thread and process.
 
-### 3. Enforcement (Cgroups v2)
+### 3. GPU Regulation
 
-- When power usage exceeds defined **Soft** or **Hard** limits:
-  - The scheduler identifies CPU-heavy processes belonging to monitored users
-  - Processes exceeding CPU thresholds are migrated to a dedicated cgroup:
-    ```
-    veridis/bad_jobs
-    ```
-- CPU bandwidth is strictly limited using the `cpu.max` interface
+- When power usage exceeds thresholds, Veridis can dynamically cap the **GPU Power Limit** to reduce overall energy consumption.
+
+### 4. Enforcement (Cgroups v2)
+
+- CPU-heavy processes are migrated to a dedicated restricted cgroup (`veridis/bad_jobs`) with bandwidth limits.
 
 ---
 
-## Dependencies
+## Persistence & Analytics
 
-### System Requirements
-
-- **Linux Kernel**
-  - Must support **eBPF** and **BTF (BPF Type Format)**
-
-- **Cgroups**
-  - Cgroups v2 must be mounted at:
-    ```
-    /sys/fs/cgroup
-    ```
-
-### Libraries
-
-- `libbpf`
-- `libelf`
-- `zlib`
-
-### Hardware
-
-- Intel CPU with **RAPL** support exposed to the operating system
-
----
-
-## Configuration
-
-Veridis is configured using a `config.json` file.
-
-### Configuration Options
-
-| Key | Description |
-|---|---|
-| `cgroup_root` | Path to the cgroup v2 mount point |
-| `power_limit_soft` | Power threshold (Watts) for moderate throttling |
-| `power_limit_hard` | Power threshold (Watts) for aggressive throttling |
-| `cpu_threshold_ms` | CPU time accumulation before a process is throttled |
-| `monitored_users` | List of usernames subject to regulation |
-| `whitelist` | Process names exempt from throttling (e.g., `Xorg`, `sshd`) |
-| `probation_cycles` | Number of cycles a process remains throttled before release |
-
----
-
-## Build Instructions
-
-The project includes a `Makefile` for building the userspace daemon.
-
-```bash
-make
-```
+Veridis tracks carbon emissions over time, storing daily aggregates in a local **SQLite** database (`~/.veridis/history.db`).
 
 ---
 
 ## Terminal User Interface (TUI)
 
-Veridis includes a real-time interactive TUI to monitor power usage, carbon emissions, and process regulation.
+Veridis includes a real-time interactive TUI and a report generation tool.
 
 ### Running the TUI
 
@@ -98,17 +46,29 @@ Veridis includes a real-time interactive TUI to monitor power usage, carbon emis
     ```bash
     sudo ./veridis
     ```
-2.  **Launch the TUI in a separate terminal**:
+2.  **Launch the TUI**:
     ```bash
     python3 scripts/veridis_tui.py
     ```
 
-### Metrics Displayed
-- **Grid Intensity**: Real-time gCO2/kWh from ElectricityMap.
-- **Carbon Used/Saved**: Cumulative emission tracking (grams).
-- **Power Load Bar**: Visual representation of current Watts vs. Hard Limit.
-- **Process List**: High-impact processes with their regulation status (OK vs. THROTTLED).
+### Generating Reports
+
+To generate a weekly or monthly carbon saving report:
+```bash
+python3 scripts/generate_report.py [days]
+```
+Example: `python3 scripts/generate_report.py 7` (last 7 days).
+
+---
+
+## Build Instructions
+
+```bash
+make
+```
 
 ### Requirements
-- `python3`
-- `pip install rich`
+- **System**: Linux with eBPF and Cgroups v2.
+- **Hardware**: Intel CPU (RAPL) and Nvidia GPU (optional).
+- **Libraries**: `libbpf`, `libelf`, `zlib`, `libcurl`, `sqlite3`.
+- **Python**: `pip install rich`.
