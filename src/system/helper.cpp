@@ -6,6 +6,8 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <iostream>
+#include <algorithm>
+#include <cctype>
 
 namespace fs = std::filesystem; 
   
@@ -62,8 +64,16 @@ std::string process_name(pid_t pid) {
   std::ifstream file(p);
 
   std::string name;
-  if (std::getline(file, name) && !name.empty()) {
-      return name;
+  if (std::getline(file, name)) {
+      name.erase(std::remove_if(name.begin(), name.end(), [](unsigned char c) { 
+          return std::iscntrl(c); 
+      }), name.end());
+
+      auto first = name.find_first_not_of(" \t\n\r");
+      if (first != std::string::npos) {
+          auto last = name.find_last_not_of(" \t\n\r");
+          return name.substr(first, (last - first + 1));
+      }
   }
 
   // Fallback to /proc/pid/stat for the process name in parentheses if comm is empty
@@ -74,11 +84,12 @@ std::string process_name(pid_t pid) {
       size_t start = stat_line.find('(');
       size_t end = stat_line.find_last_of(')');
       if(start != std::string::npos && end != std::string::npos && end > start) {
-          return stat_line.substr(start + 1, end - start - 1);
+          std::string n = stat_line.substr(start + 1, end - start - 1);
+          if(!n.empty()) return n;
       }
   }
 
-  return "[kernel/exp]";
+  return "[unknown]";
 }
 
 std::string process_user(pid_t pid) {

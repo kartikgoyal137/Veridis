@@ -2,3 +2,4 @@
 veridis
 config.json
 /venv
+/scripts/__pycache__

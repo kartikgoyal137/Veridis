@@ -55,6 +55,7 @@ int main() {
         double total_carbon_used_g = 0.0;
         double total_carbon_saved_g = 0.0;
         double last_intensity = 0.0;
+        std::string last_profile = "moderate";
 
         Rapl rapl = init_rapl();
         logger(LogLevel::INFO, "RAPL ready");
@@ -78,8 +79,9 @@ int main() {
         while (run) {
             if (iters % upd_intvl == 0) {
                 CarbonData gstate = carb.fetch_live_intensity();
-                pwr_sft = cfg.power_profiles[gstate.profile]["soft"];
-                pwr_hrd = cfg.power_profiles[gstate.profile]["hard"];
+                last_profile = gstate.profile;
+                pwr_sft = cfg.power_profiles[last_profile]["soft"];
+                pwr_hrd = cfg.power_profiles[last_profile]["hard"];
                 last_intensity = (gstate.intensity > 0) ? gstate.intensity : 450; // Default to 450 if fetch fails
                 
                 logger(LogLevel::INFO, "Grid: " + gstate.profile + " | " + std::to_string(gstate.intensity) + " gCO2");
@@ -186,6 +188,9 @@ int main() {
             state["total_carbon_saved_g"] = total_carbon_saved_g;
             state["soft_limit"] = pwr_sft;
             state["hard_limit"] = pwr_hrd;
+            state["policy"] = last_profile;
+            state["gpu_utilization"] = gpu_stats.utilization;
+            state["gpu_limit"] = gpu_stats.current_limit;
             
             // History
             json hist_json = json::array();
