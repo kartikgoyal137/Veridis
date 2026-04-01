@@ -11,6 +11,11 @@
 #include "src/system/rapl.hpp"
 #include "src/core/config.hpp"
 #include "src/system/carbon.hpp"
+#include <nlohmann/json.hpp>
+#include <fstream>
+#include <iomanip>
+
+using json = nlohmann::json;
 
 volatile std::sig_atomic_t run = 1;
 
@@ -44,6 +49,10 @@ int main() {
     
         int iters = 0;
         const int upd_intvl = 150;
+        
+        double total_carbon_used_g = 0.0;
+        double total_carbon_saved_g = 0.0;
+        double last_intensity = 0.0;
 
         Rapl rapl = init_rapl();
         logger(LogLevel::INFO, "RAPL ready");
@@ -65,6 +74,7 @@ int main() {
                 CarbonData gstate = carb.fetch_live_intensity();
                 pwr_sft = cfg.power_profiles[gstate.profile]["soft"];
                 pwr_hrd = cfg.power_profiles[gstate.profile]["hard"];
+                last_intensity = gstate.intensity;
                 
                 logger(LogLevel::INFO, "Grid: " + gstate.profile + " | " + std::to_string(gstate.intensity) + " gCO2");
                 logger(LogLevel::INFO, "Lims: " + std::to_string(pwr_sft) + "W / " + std::to_string(pwr_hrd) + "W");
@@ -137,6 +147,48 @@ int main() {
             }
             
             iters++;
+
+            // Carbon Calculation (2s interval)
+            double interval_h = 2.0 / 3600.0;
+            double carbon_iteration = (pwr / 1000.0) * interval_h * last_intensity;
+            total_carbon_used_g += carbon_iteration;
+
+            // Simple "Saved" estimation: if pwr < pwr_sft, we are "saving" relative to the limit
+            if (pwr < pwr_sft && pwr_sft > 0) {
+                total_carbon_saved_g += ((pwr_sft - pwr) / 1000.0) * interval_h * last_intensity;
+            }
+
+            // Export JSON State
+            json state;
+            state["timestamp"] = std::time(nullptr);
+            state["power_w"] = pwr;
+            state["carbon_intensity"] = last_intensity;
+            state["total_carbon_used_g"] = total_carbon_used_g;
+            state["total_carbon_saved_g"] = total_carbon_saved_g;
+            state["soft_limit"] = pwr_sft;
+            state["hard_limit"] = pwr_hrd;
+            
+            json procs_json = json::array();
+            for (const auto& ent : udata) {
+                pid_t pid = static_cast<pid_t>(ent.first);
+                uint64_t t_ns = ent.second;
+                double cpu_percent = (t_ns / 2000000000.0) * 100.0; // 2s interval
+                
+                json p;
+                p["pid"] = pid;
+                p["name"] = process_name(pid);
+                p["user"] = process_user(pid);
+                p["cpu_percent"] = cpu_percent;
+                p["is_throttled"] = (thrtld.find(pid) != thrtld.end());
+                procs_json.push_back(p);
+            }
+            state["processes"] = procs_json;
+
+            std::ofstream ofs("/tmp/veridis_stats.json");
+            if (ofs.is_open()) {
+                ofs << std::setw(4) << state << std::endl;
+            }
+
             sleep(2);
         }
 

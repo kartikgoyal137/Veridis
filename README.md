@@ -84,4 +84,31 @@ The project includes a `Makefile` for building the userspace daemon.
 
 ```bash
 make
+```
 
+---
+
+## Terminal User Interface (TUI)
+
+Veridis includes a real-time interactive TUI to monitor power usage, carbon emissions, and process regulation.
+
+### Running the TUI
+
+1.  **Start the Veridis daemon**:
+    ```bash
+    sudo ./veridis
+    ```
+2.  **Launch the TUI in a separate terminal**:
+    ```bash
+    python3 scripts/veridis_tui.py
+    ```
+
+### Metrics Displayed
+- **Grid Intensity**: Real-time gCO2/kWh from ElectricityMap.
+- **Carbon Used/Saved**: Cumulative emission tracking (grams).
+- **Power Load Bar**: Visual representation of current Watts vs. Hard Limit.
+- **Process List**: High-impact processes with their regulation status (OK vs. THROTTLED).
+
+### Requirements
+- `python3`
+- `pip install rich`
